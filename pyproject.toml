@@ -10,6 +10,7 @@ readme = "README.md"
 python = "~3.10"
 ml-metadata = "^1.14.0"
 huggingface-hub = "^0.17.2"
+python-dotenv = "^1.0.0"
 
 
 [build-system]
