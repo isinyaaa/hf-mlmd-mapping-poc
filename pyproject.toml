@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "hf-mlmd"
+version = "0.1.0"
+description = "Test huggingface model mapping into mlmd"
+authors = ["Isabella do Amaral <idoamara@redhat.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "~3.10"
+ml-metadata = "^1.14.0"
+huggingface-hub = "^0.17.2"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
