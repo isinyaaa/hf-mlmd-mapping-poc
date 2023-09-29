@@ -1,6 +1,7 @@
 import os
 import json
 from pprint import pprint
+from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
 from huggingface_hub import HfApi, ModelCard
@@ -41,36 +42,44 @@ class HuggingFaceModelMD:
 
     @property
     def model_type(self) -> metadata_store_pb2.ArtifactType:
-        if self._model_type is None:
-            try:
-                self._model_type = self._store.get_artifact_type(self._model_type_name).id
-                print("Model type already exists")
-            except:  # noqa: E722
-                model_type = metadata_store_pb2.ArtifactType()
-                model_type.name = self._model_type_name
-                for k, v in self._model_type_map.items():
-                    model_type.properties[k] = self._mlmd_map.get(v, metadata_store_pb2.STRING)
-                self._model_type = self._store.put_artifact_type(model_type)
-
         return self._model_type
 
-    def register_model(self, **kwargs) -> int:
+    def _create_artifact_type(self, type_map: Dict[str, Any]) -> int:
+        try:
+            model_type = self._store.get_artifact_type(self._model_type_name).id
+            print("Model type already exists")
+        except:  # noqa: E722
+            model_type = metadata_store_pb2.ArtifactType()
+            model_type.name = self._model_type_name
+            for k, v in type_map.items():
+                model_type.properties[k] = self._mlmd_map.get(type(v), metadata_store_pb2.STRING)
+            model_type = self._store.put_artifact_type(model_type)
+        self._model_type = model_type
+        return model_type
+
+    def register_model(self, type_map: Dict[str, Any]) -> int:
+        """Register a model with the metadata store.
+
+        Args:
+            type_map (Dict[str, Any]): A dictionary of model metadata
+        """
         artifact = metadata_store_pb2.Artifact()
-        for k, v in kwargs.items():
-            if k in self._model_type_map:
-                if isinstance(v, str):
-                    artifact.properties[k].string_value = v
-                elif isinstance(v, int):
-                    artifact.properties[k].int_value = v
-                elif isinstance(v, float):
-                    artifact.properties[k].double_value = v
-                elif isinstance(v, bool):
-                    artifact.properties[k].bool_value = v
-                else:
-                    artifact.properties[k].string_value = json.dumps(v)
+        artifact.type_id = self._create_artifact_type(type_map)
+
+        for k, v in type_map.items():
+            # if k in self._model_type_map:
+            if isinstance(v, str):
+                artifact.properties[k].string_value = v
+            elif isinstance(v, int):
+                artifact.properties[k].int_value = v
+            elif isinstance(v, float):
+                artifact.properties[k].double_value = v
+            elif isinstance(v, bool):
+                artifact.properties[k].bool_value = v
             else:
-                raise KeyError(f"Unknown property {k}")
-        artifact.type_id = self.model_type
+                artifact.properties[k].string_value = json.dumps(v)
+            # else:
+            #     raise KeyError(f"Unknown property {k}")
         return self._store.put_artifacts([artifact])[0]
 
     # @property
@@ -120,6 +129,6 @@ if __name__ == "__main__":
     }
 
     hf_model_md = HuggingFaceModelMD()
-    model_id = hf_model_md.register_model(**model_info_md)
+    model_id = hf_model_md.register_model(model_info_md)
     print("Model registered with id", model_id)
     pprint(hf_model_md._store.get_artifacts_by_id([model_id]))
