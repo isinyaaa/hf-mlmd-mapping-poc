@@ -21,6 +21,15 @@ def get_mlmd_store() -> metadata_store.MetadataStore:
     return metadata_store.MetadataStore(connection_config)
 
 
+def print_typemap(type_map: Dict[str, Any]):
+    for k, v in type_map.items():
+        if isinstance(v, list):
+            print(f"{k}: List[{type(v[0])}]")
+        else:
+            print(f"{k}: {type(v)}")
+        # print(f"{k}: {type(v)} = {v}")
+
+
 class MLMDWrapper:
     _mlmd_map = {
         int: metadata_store_pb2.INT,
@@ -84,6 +93,10 @@ class MLMDWrapper:
                 artifact.properties[k].string_value = self._repeated_scalar_to_str(v)
             else:
                 artifact.properties[k].string_value = json.dumps(v)
+
+        print("Artifact type map:")
+        print_typemap(artifact.properties)
+        print()
         return self._store.put_artifacts([artifact])[0]
 
 
@@ -91,25 +104,60 @@ if __name__ == "__main__":
     model = 'suno/bark-small'
 
     hf = get_hf_api_handle()
-    # ds_info = hf.dataset_info(model)
     model_info = hf.model_info(model)
-    model_card = ModelCard.load(model)
-    # pprint(ds_info)
+    print("Model info type map:")
+    print_typemap(model_info.__dict__)
+    print()
     # pprint(model_info)
+    model_card = ModelCard.load(model)
     # pprint(model_card.data.to_dict())
     # pprint(model_card.text)
     # pprint(model_card.content)
-    # hf.list_files_info()
-    # hf.repo_info()
-    # hf.space_info()
 
     model_info_md = {
-        "id": model_info.modelId,
+        "modelId": model_info.modelId,
+        "sha": model_info.sha,
+        "lastModified": model_info.lastModified,
+        "tags": model_info.tags,
+        "pipeline_tag": model_info.pipeline_tag,
+        # "private": model_info.private,
+        # siblings: List[<class 'huggingface_hub.hf_api.RepoFile'>]
+        "author": model_info.author,
+        "config": model_info.config,
+        "securityStatus": model_info.securityStatus,
+        # "disabled": model_info.disabled,
+        # "gated": model_info.gated,
+        "library_name": model_info.library_name,
+        # cardData: <class 'dict'>
+        # transformersInfo: <class 'dict'>
         "description": model_card.text,
         "license": model_card.data.license,
-        "sha": model_info.sha,
-        "tags": model_info.tags,
     }
+
+    # modelId: <class 'str'>
+    # sha: <class 'str'>
+    # lastModified: <class 'str'>
+    # tags: List[<class 'str'>]
+    # pipeline_tag: <class 'str'>
+    # siblings: List[<class 'huggingface_hub.hf_api.RepoFile'>]
+    # private: <class 'bool'>
+    # author: <class 'str'>
+    # config: <class 'dict'>
+    # securityStatus: <class 'NoneType'>
+    # disabled: <class 'bool'>
+    # gated: <class 'bool'>
+    # library_name: <class 'str'>
+    # model-index: <class 'NoneType'>
+    # cardData: <class 'dict'>
+    # transformersInfo: <class 'dict'>
+
+    # HF internal model info
+    # _id: <class 'str'>
+    # id: <class 'str'>
+    # downloads: <class 'int'>
+    # likes: <class 'int'>
+    # model-index: <class 'NoneType'>
+    # spaces: List[<class 'str'>]
 
     store = get_mlmd_store()
 
