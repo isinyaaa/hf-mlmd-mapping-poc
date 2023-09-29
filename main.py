@@ -59,6 +59,9 @@ class MLMDWrapper:
         self._type = _type
         return _type
 
+    def _repeated_scalar_to_str(self, repeated: List[Any]) -> str:
+        return ','.join([str(x) for x in repeated])
+
     def register_artifact(self, type_map: Dict[str, Any]) -> int:
         """Register an artifact with the metadata store.
 
@@ -77,6 +80,8 @@ class MLMDWrapper:
                 artifact.properties[k].double_value = v
             elif isinstance(v, bool):
                 artifact.properties[k].bool_value = v
+            elif isinstance(v, list) and type(v[0]) in self._mlmd_map:
+                artifact.properties[k].string_value = self._repeated_scalar_to_str(v)
             else:
                 artifact.properties[k].string_value = json.dumps(v)
         return self._store.put_artifacts([artifact])[0]
