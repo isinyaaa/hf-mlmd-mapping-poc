@@ -55,7 +55,7 @@ class MLMDWrapper:
     def type(self) -> metadata_store_pb2.ArtifactType:
         return self._type
 
-    def _create_artifact_type(self, type_map: Dict[str, Any]) -> int:
+    def _create_artifact_type(self, type_map: Dict[str, Any], new_mapping: Dict[str, str]) -> int:
         try:
             _type = self._store.get_artifact_type(self._type_name).id
             print("Model type already exists")
@@ -63,7 +63,11 @@ class MLMDWrapper:
             _type = metadata_store_pb2.ArtifactType()
             _type.name = self._type_name
             for k, v in type_map.items():
-                _type.properties[k] = self._mlmd_map.get(type(v), metadata_store_pb2.STRING)
+                if k in new_mapping:
+                    key = new_mapping[k]
+                else:
+                    key = k
+                _type.properties[key] = self._mlmd_map.get(type(v), metadata_store_pb2.STRING)
             _type = self._store.put_artifact_type(_type)
         self._type = _type
         return _type
@@ -78,7 +82,8 @@ class MLMDWrapper:
             type_map (Dict[str, Any]): A dictionary of model metadata
         """
         artifact = metadata_store_pb2.Artifact()
-        artifact.type_id = self._create_artifact_type(type_map)
+
+        new_mapping: Dict[str, str] = dict()
 
         for k, v in type_map.items():
             if isinstance(v, str):
@@ -93,9 +98,27 @@ class MLMDWrapper:
             elif v is None:
                 artifact.properties[k].string_value = ""
             elif isinstance(v, list) and type(v[0]) in self._mlmd_map:
-                artifact.properties[k].string_value = self._repeated_scalar_to_str(v)
+                key = f"{k}.list"
+                new_mapping[k] = key
+                artifact.properties[key].string_value = self._repeated_scalar_to_str(v)
+            elif isinstance(v, dict):
+                key = f"{k}.key"
+                new_mapping[k] = key
+                obj_id = MLMDWrapper(
+                    self._store,
+                    f"{self._type_name}.{k}"
+                ).register_artifact(v)
+                artifact.properties[key].string_value = str(obj_id)
             else:
-                artifact.properties[k].string_value = json.dumps(v)
+                key = f"{k}.key"
+                new_mapping[k] = key
+                obj_id = MLMDWrapper(
+                    self._store,
+                    f"{self._type_name}.{k}"
+                ).register_artifact(v.__dict__)
+                artifact.properties[key].string_value = str(obj_id)
+
+        artifact.type_id = self._create_artifact_type(type_map, new_mapping)
 
         print("Artifact type map:")
         print_typemap(artifact.properties)
@@ -124,6 +147,7 @@ if __name__ == "__main__":
         "tags": model_info.tags,
         "pipeline_tag": model_info.pipeline_tag,
         "private": model_info.private,
+        "sibling": model_info.siblings[0],
         # siblings: List[<class 'huggingface_hub.hf_api.RepoFile'>]
         "author": model_info.author,
         "config": model_info.config,
@@ -131,28 +155,11 @@ if __name__ == "__main__":
         "disabled": model_info.disabled,
         "gated": model_info.gated,
         "library_name": model_info.library_name,
-        # cardData: <class 'dict'>
-        # transformersInfo: <class 'dict'>
-        "description": model_card.text,
-        "license": model_card.data.license,
+        "cardData": model_card.data,
+        "transformersInfo": model_info.transformersInfo,
+        # "description": model_card.text,
+        # "license": model_card.data.license,
     }
-
-    # modelId: <class 'str'>
-    # sha: <class 'str'>
-    # lastModified: <class 'str'>
-    # tags: List[<class 'str'>]
-    # pipeline_tag: <class 'str'>
-    # siblings: List[<class 'huggingface_hub.hf_api.RepoFile'>]
-    # private: <class 'bool'> <-- Trouble
-    # author: <class 'str'>
-    # config: <class 'dict'>
-    # securityStatus: <class 'NoneType'>
-    # disabled: <class 'bool'> <-- Trouble
-    # gated: <class 'bool'> <-- Trouble
-    # library_name: <class 'str'>
-    # model-index: <class 'NoneType'>
-    # cardData: <class 'dict'>
-    # transformersInfo: <class 'dict'>
 
     # HF internal model info
     # _id: <class 'str'>
