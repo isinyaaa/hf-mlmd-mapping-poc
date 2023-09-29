@@ -83,12 +83,13 @@ class MLMDWrapper:
         for k, v in type_map.items():
             if isinstance(v, str):
                 artifact.properties[k].string_value = v
+            # bool is a subclass of int, so check for bool first
+            elif isinstance(v, bool):
+                artifact.properties[k].bool_value = v
             elif isinstance(v, int):
                 artifact.properties[k].int_value = v
             elif isinstance(v, float):
                 artifact.properties[k].double_value = v
-            elif isinstance(v, bool):
-                artifact.properties[k].bool_value = v
             elif v is None:
                 artifact.properties[k].string_value = ""
             elif isinstance(v, list) and type(v[0]) in self._mlmd_map:
@@ -122,13 +123,13 @@ if __name__ == "__main__":
         "lastModified": model_info.lastModified,
         "tags": model_info.tags,
         "pipeline_tag": model_info.pipeline_tag,
-        # "private": model_info.private,
+        "private": model_info.private,
         # siblings: List[<class 'huggingface_hub.hf_api.RepoFile'>]
         "author": model_info.author,
         "config": model_info.config,
         "securityStatus": model_info.securityStatus,
-        # "disabled": model_info.disabled,
-        # "gated": model_info.gated,
+        "disabled": model_info.disabled,
+        "gated": model_info.gated,
         "library_name": model_info.library_name,
         # cardData: <class 'dict'>
         # transformersInfo: <class 'dict'>
@@ -142,12 +143,12 @@ if __name__ == "__main__":
     # tags: List[<class 'str'>]
     # pipeline_tag: <class 'str'>
     # siblings: List[<class 'huggingface_hub.hf_api.RepoFile'>]
-    # private: <class 'bool'>
+    # private: <class 'bool'> <-- Trouble
     # author: <class 'str'>
     # config: <class 'dict'>
     # securityStatus: <class 'NoneType'>
-    # disabled: <class 'bool'>
-    # gated: <class 'bool'>
+    # disabled: <class 'bool'> <-- Trouble
+    # gated: <class 'bool'> <-- Trouble
     # library_name: <class 'str'>
     # model-index: <class 'NoneType'>
     # cardData: <class 'dict'>
