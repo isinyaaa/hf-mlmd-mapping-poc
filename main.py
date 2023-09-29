@@ -89,6 +89,8 @@ class MLMDWrapper:
                 artifact.properties[k].double_value = v
             elif isinstance(v, bool):
                 artifact.properties[k].bool_value = v
+            elif v is None:
+                artifact.properties[k].string_value = ""
             elif isinstance(v, list) and type(v[0]) in self._mlmd_map:
                 artifact.properties[k].string_value = self._repeated_scalar_to_str(v)
             else:
