@@ -15,7 +15,13 @@ def get_hf_api_handle():
     return HfApi(token=HF_TOKEN)
 
 
-class HuggingFaceModelMD:
+def get_mlmd_store() -> metadata_store.MetadataStore:
+    connection_config = metadata_store_pb2.ConnectionConfig()
+    connection_config.fake_database.SetInParent()
+    return metadata_store.MetadataStore(connection_config)
+
+
+class MLMDWrapper:
     _mlmd_map = {
         int: metadata_store_pb2.INT,
         str: metadata_store_pb2.STRING,
@@ -23,42 +29,38 @@ class HuggingFaceModelMD:
         bool: metadata_store_pb2.BOOLEAN,
     }
 
-    _model_type_name = "HuggingFace.model"
-    _model_type_map = {
-        "id": str,
-        "description": str,
-        "license": str,
-        "sha": str,
-        "tags": list[str],
-    }
+    # _model_type_map = {
+    #     "id": str,
+    #     "description": str,
+    #     "license": str,
+    #     "sha": str,
+    #     "tags": list[str],
+    # }
 
-    def __init__(self):
-        connection_config = metadata_store_pb2.ConnectionConfig()
-        connection_config.fake_database.SetInParent()
-        self._store = metadata_store.MetadataStore(connection_config)
-        # self._dataset_type_name = "HuggingFace.dataset"
-        self._model_type = None
-        # self._dataset_type = None
+    def __init__(self, store: metadata_store.MetadataStore, type_name: str):
+        self._type_name = type_name
+        self._store = store
+        self._type = None
 
     @property
-    def model_type(self) -> metadata_store_pb2.ArtifactType:
-        return self._model_type
+    def type(self) -> metadata_store_pb2.ArtifactType:
+        return self._type
 
     def _create_artifact_type(self, type_map: Dict[str, Any]) -> int:
         try:
-            model_type = self._store.get_artifact_type(self._model_type_name).id
+            _type = self._store.get_artifact_type(self._type_name).id
             print("Model type already exists")
         except:  # noqa: E722
-            model_type = metadata_store_pb2.ArtifactType()
-            model_type.name = self._model_type_name
+            _type = metadata_store_pb2.ArtifactType()
+            _type.name = self._type_name
             for k, v in type_map.items():
-                model_type.properties[k] = self._mlmd_map.get(type(v), metadata_store_pb2.STRING)
-            model_type = self._store.put_artifact_type(model_type)
-        self._model_type = model_type
-        return model_type
+                _type.properties[k] = self._mlmd_map.get(type(v), metadata_store_pb2.STRING)
+            _type = self._store.put_artifact_type(_type)
+        self._type = _type
+        return _type
 
-    def register_model(self, type_map: Dict[str, Any]) -> int:
-        """Register a model with the metadata store.
+    def register_artifact(self, type_map: Dict[str, Any]) -> int:
+        """Register an artifact with the metadata store.
 
         Args:
             type_map (Dict[str, Any]): A dictionary of model metadata
@@ -67,7 +69,6 @@ class HuggingFaceModelMD:
         artifact.type_id = self._create_artifact_type(type_map)
 
         for k, v in type_map.items():
-            # if k in self._model_type_map:
             if isinstance(v, str):
                 artifact.properties[k].string_value = v
             elif isinstance(v, int):
@@ -78,30 +79,7 @@ class HuggingFaceModelMD:
                 artifact.properties[k].bool_value = v
             else:
                 artifact.properties[k].string_value = json.dumps(v)
-            # else:
-            #     raise KeyError(f"Unknown property {k}")
         return self._store.put_artifacts([artifact])[0]
-
-    # @property
-    # def dataset_type(self) -> metadata_store_pb2.ArtifactType:
-    #     if self._dataset_type is None:
-    #         try:
-    #             self._dataset_type = self._store.get_artifact_type(self._dataset_type_name)
-    #         except:  # noqa: E722
-    #             dataset_type = metadata_store_pb2.ArtifactType()
-    #             dataset_type.name = self._dataset_type_name
-    #             dataset_type.properties["name"] = metadata_store_pb2.STRING
-    #             dataset_type.properties["description"] = metadata_store_pb2.STRING
-    #             self._store.put_artifact_type(dataset_type)
-
-    #     return self._dataset_type
-
-    # def register_dataset(self, name: str, description: str) -> int:
-    #     artifact = metadata_store_pb2.Artifact()
-    #     artifact.properties["name"].string_value = name
-    #     artifact.properties["description"].string_value = description
-    #     artifact.type_id = self.dataset_type.id
-    #     return self._store.put_artifact(artifact)
 
 
 if __name__ == "__main__":
@@ -128,7 +106,9 @@ if __name__ == "__main__":
         "tags": model_info.tags,
     }
 
-    hf_model_md = HuggingFaceModelMD()
-    model_id = hf_model_md.register_model(model_info_md)
+    store = get_mlmd_store()
+
+    hf_model_md = MLMDWrapper(store, "HuggingFace.model")
+    model_id = hf_model_md.register_artifact(model_info_md)
     print("Model registered with id", model_id)
-    pprint(hf_model_md._store.get_artifacts_by_id([model_id]))
+    pprint(store.get_artifacts_by_id([model_id]))
