@@ -2,6 +2,7 @@ import os
 import json
 from pprint import pprint
 from typing import Any, Dict, List, Optional
+import inspect
 
 from dotenv import load_dotenv
 from huggingface_hub import HfApi, ModelCard
@@ -97,10 +98,25 @@ class MLMDWrapper:
                 artifact.properties[k].double_value = v
             elif v is None:
                 artifact.properties[k].string_value = ""
-            elif isinstance(v, list) and type(v[0]) in self._mlmd_map:
-                key = f"{k}.list"
-                new_mapping[k] = key
-                artifact.properties[key].string_value = self._repeated_scalar_to_str(v)
+            elif isinstance(v, list):
+                if type(v[0]) in self._mlmd_map:
+                    key = f"{k}.list"
+                    new_mapping[k] = key
+                    artifact.properties[key].string_value = self._repeated_scalar_to_str(v)
+                elif inspect.isclass(v[0]):  # we're assuming homogeneous lists
+                    key = f"{k}.key_list"
+                    new_mapping[k] = key
+                    key_list = list()
+                    for item in v:
+                        obj_id = MLMDWrapper(
+                            self._store,
+                            f"{self._type_name}.{item.__name__}"
+                        ).register_artifact(item.__dict__)
+                        key_list.append(str(obj_id))
+                    artifact.properties[key].string_value = self._repeated_scalar_to_str(key_list)
+                else:  # what if we're dealing with a list of lists?
+                    # new_mapping[k] = ""
+                    pass
             elif isinstance(v, dict):
                 key = f"{k}.key"
                 new_mapping[k] = key
@@ -109,14 +125,20 @@ class MLMDWrapper:
                     f"{self._type_name}.{k}"
                 ).register_artifact(v)
                 artifact.properties[key].string_value = str(obj_id)
-            else:
+            elif inspect.isclass(v):
                 key = f"{k}.key"
                 new_mapping[k] = key
                 obj_id = MLMDWrapper(
                     self._store,
-                    f"{self._type_name}.{k}"
+                    f"{self._type_name}.{v.__name__}"
                 ).register_artifact(v.__dict__)
                 artifact.properties[key].string_value = str(obj_id)
+            else:
+                print(v)
+                # pprint(v)
+                if inspect.isclass(v):
+                    print("Class", v)
+                raise NotImplementedError(f"Type {type(v)} (for key {k}) not supported")
 
         artifact.type_id = self._create_artifact_type(type_map, new_mapping)
 
@@ -133,9 +155,10 @@ if __name__ == "__main__":
     model_info = hf.model_info(model)
     print("Model info type map:")
     print_typemap(model_info.__dict__)
+    print(model_info)
     print()
     # pprint(model_info)
-    model_card = ModelCard.load(model)
+    # model_card = ModelCard.load(model)
     # pprint(model_card.data.to_dict())
     # pprint(model_card.text)
     # pprint(model_card.content)
@@ -147,15 +170,14 @@ if __name__ == "__main__":
         "tags": model_info.tags,
         "pipeline_tag": model_info.pipeline_tag,
         "private": model_info.private,
-        "sibling": model_info.siblings[0],
-        # siblings: List[<class 'huggingface_hub.hf_api.RepoFile'>]
+        "siblings": model_info.siblings,
         "author": model_info.author,
         "config": model_info.config,
         "securityStatus": model_info.securityStatus,
         "disabled": model_info.disabled,
         "gated": model_info.gated,
         "library_name": model_info.library_name,
-        "cardData": model_card.data,
+        "cardData": model_info.cardData,
         "transformersInfo": model_info.transformersInfo,
         # "description": model_card.text,
         # "license": model_card.data.license,
